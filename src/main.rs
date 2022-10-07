@@ -4,6 +4,8 @@ fn get_greeting() -> String {
 
 fn main() {
     println!("{}", get_greeting());
+
+    loop {}
 }
 
 #[cfg(test)]
