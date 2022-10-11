@@ -1,39 +1,126 @@
 name: Rust
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+  push:
+    branches:
+      - test
+    tags:
+      - 'v*.*.*'
 
 env:
   CARGO_TERM_COLOR: always
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  BIN_NAME: iot-assignment
 
 jobs:
-  build:
-
+  build_and_test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
     - name: Build
-      run: cargo build --verbose
-    - name: Run tests
+      run: cargo build --release --all-features
+    - name: Test
       run: cargo test --verbose
       
-  publish:
-    needs: build
+  release:
+    needs: build_and_test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            rust: stable
+            target: x86_64-unknown-linux-gnu
+            bin: 'iot-assignment'
+            name: 'iot-assignment-linux-x86_64.tar.gz'
+          - os: windows-latest
+            rust: stable
+            target: x86_64-pc-windows-msvc
+            bin: 'iot-assignment.exe'
+            name: 'iot-assignment-windows-x86_64.zip'
+          - os: macOS-latest
+            rust: stable
+            target: x86_64-apple-darwin
+            bin: 'iot-assignment'
+            name: 'iot-assignment-darwin-x86_64.tar.gz'
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          toolchain: ${{ matrix.rust }}
+      - name: Cache Rust dependencies
+        uses: actions/cache@v1.0.1
+        with:
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+      - name: Build target
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target ${{ matrix.target }} --all-features
+      - name: Package
+        shell: bash
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.bin }}
+          cd target/${{ matrix.target }}/release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]
+          then
+            7z a ../../../${{ matrix.name }} ${{ matrix.bin }}
+          else
+            tar czvf ../../../${{ matrix.name }} ${{ matrix.bin }}
+          fi
+          cd -
+      - name: Publish
+        uses: softprops/action-gh-release@v1
+        with:
+            files: 'iot-assignment*'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    needs: build_and_test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      # Add your test steps here if needed...
-      - name: Build container
-        uses: docker/build-push-action@v1
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
         with:
-          username: vincentbaeten
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # list of Docker images to use as base name for tags
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository }}
+          # generate Docker tags based on the following events/attributes
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=schedule
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
           registry: ghcr.io
-          repository: ${{ env.IMAGE_NAME }}
-          tag_with_sha: true
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
