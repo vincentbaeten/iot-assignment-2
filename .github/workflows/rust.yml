@@ -26,14 +26,19 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      # Add your test steps here if needed...
-      - name: Build container
-        uses: docker/build-push-action@v1
+    steps:      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
         with:
-          username: vincentbaeten
-          password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
-          repository: ${{ env.IMAGE_NAME }}
-          tag_with_sha: true
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: vincentbaeten/iot-assignment-2:latest
