@@ -59,10 +59,13 @@ jobs:
       - name: Cache Rust dependencies
         uses: actions/cache@v1.0.1
         with:
-          path: target
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-build-
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.OS }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build target
         uses: actions-rs/cargo@v1
         with:
