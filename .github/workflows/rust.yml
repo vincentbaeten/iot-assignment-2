@@ -40,5 +40,6 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
+          context: .
           push: true
           tags: vincentbaeten/iot-assignment-2:latest
