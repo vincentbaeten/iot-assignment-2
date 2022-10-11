@@ -7,5 +7,5 @@ COPY . .
 RUN cargo build --release --target x86_64-unknown-linux-gnu
 
 FROM scratch
-COPY --from=builder /build/target/x86_64-unknown-linux-gnu/release/iot-assignment-1 /entrypoint
+COPY --from=builder /build/target/x86_64-unknown-linux-gnu/release/iot-assignment /entrypoint
 ENTRYPOINT ["./entrypoint"]
