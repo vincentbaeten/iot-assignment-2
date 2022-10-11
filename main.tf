@@ -10,7 +10,7 @@ terraform {
 provider "docker" {}
 
 resource "docker_image" "iot-assignment-2" {
-  name         = "ghcr.io/vincentbaeten/iot-assignment-2:sha-25bdee3"
+  name         = "ghcr.io/vincentbaeten/iot-assignment-2:latest"
   keep_locally = false
 }
 
